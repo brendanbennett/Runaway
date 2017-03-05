@@ -11,10 +11,16 @@ namespace Runaway
     {
         static void Main(string[] args)
         {
-            string html = GetData();
+            
             //Console.WriteLine(html);
             //0 = D
             //1 = R
+            int maxInsLength = 4;
+            string username = "brendanbennett";
+            string password = "youwontguessthis";
+
+            //Data
+            string html = GetData(username,password);
             string rawMap = html.Substring(html.IndexOf("=.") + 1, html.IndexOf("&FVinsMax") - html.IndexOf("=.") - 1);
             int maxIns = Int32.Parse(html.Substring(html.IndexOf("Max=") + 4, html.IndexOf("&FVinsMin") - html.IndexOf("Max=") - 4));
             int minIns = Int32.Parse(html.Substring(html.IndexOf("Min=") + 4, html.IndexOf("&FVboardX") - html.IndexOf("Min=") - 4));
@@ -26,17 +32,35 @@ namespace Runaway
             var map = GenerateMap(rawMap, boardX, boardY);
             PrintMap(map, boardX, boardY);
 
-            PrintInstructions(GenerateInstructions(4), 16, 4);
+            for (int i = minIns; i <= maxIns; i++)
+            {
+                var startingIns = GenerateInstructions(i);
 
+                var workingIns = RunInstructions(startingIns, map, 0, 0);
+                PrintInstructions(startingIns);
+                Console.Write(Environment.NewLine);
+                PrintInstructions(workingIns);
+            }
+
+            /*
+            foreach (List<int> instruction in workingIns)
+            {
+
+                foreach (int subIns in instruction)
+                {
+                    if (subIns == 0)
+                    {
+                        yPos++;
+                    }
+                }
+            }*/
 
             Console.ReadKey();
         }
 
 
-        static string GetData()
+        static string GetData(string username, string password)
         {
-            string username = "brendanbennett";
-            string password = "youwontguessthis";
 
             using (WebClient client = new WebClient())
             {
@@ -45,74 +69,101 @@ namespace Runaway
             }
         }
 
-        static char[,] GenerateMap(string rawMap, int boardX, int boardY)
+        static List<List<char>> GenerateMap(string rawMap, int boardX, int boardY)
         {
-            char[,] map = new char[boardY, boardX];
+            List<List<char>> map = new List<List<char>>();
             for (int i = 0; i < boardY; i++)
             {
+                var mapRow = CreateList<char>(boardX);
                 for (int j = 0; j < boardX; j++)
                 {
-                    map[i, j] = rawMap[j * (i + 1)];
+                    mapRow[j] = rawMap[j * (i + 1)];
                 }
+                mapRow.Add('G');
+                map.Add(mapRow);
             }
+            map.Add(CreateList<char>(boardX + 1));
+            for (int i = 0; i <= boardX; i++)
+            {
+                map[boardY][i] = 'G';
+            }
+
             return map;
         }
 
-        static void PrintMap(char[,] map,int y, int x)
+        static void PrintMap(List<List<char>> map, int y, int x)
         {
-            for (int i = 0; i < y; i++)
+            for (int i = 0; i <= y; i++)
             {
-                for (int j = 0; j < x; j++)
+                for (int j = 0; j <= x; j++)
                 {
-                    Console.Write(string.Format("{0} ", map[i, j]));
+                    Console.Write(string.Format("{0} ", map[i][j]));
                 }
                 Console.Write(Environment.NewLine);
             }
         }
 
-        static void PrintInstructions(int[,] ins, int y, int x)
+        static void PrintInstructions(List<List<int>> ins)
         {
-            for (int i = 0; i < y; i++)
+            foreach (List<int> instruction in ins)
             {
-                for (int j = 0; j < x; j++)
+                foreach (int subInstruction in instruction)
                 {
-                    Console.Write(string.Format("{0} ", ins[i, j]));
+                    Console.Write(string.Format("{0} ", subInstruction));
                 }
                 Console.Write(Environment.NewLine);
             }
         }
 
-        static int[,] GenerateInstructions(int length)
+        private static List<T> CreateList<T>(int capacity)
+        {
+            return Enumerable.Repeat(default(T), capacity).ToList();
+        }
+
+        static List<List<int>> GenerateInstructions(int length)
         {
             string binaryString;
-            int[,] instructionSet = new int[length*length,length];
+            List<List<int>> instructionSet = new List<List<int>>();
 
-            for (int i = 0; i < (length*length); i++)
+            for (int i = 0; i < (Math.Pow(2,length)); i++)
             {
                 binaryString = Convert.ToString(i, 2);
                 //Console.WriteLine(binaryString);
-                for (int j = binaryString.Length-1; j >= 0; j--)
+                //Instruction is in form {0,0,0,0}
+                var instruction = CreateList<int>(length);
+
+                for (int j = binaryString.Length - 1; j >= 0; j--)
                 {
-                    instructionSet[i, j+ (length- binaryString.Length)] = Int16.Parse(binaryString[j].ToString());
+                    instruction[j + (length - binaryString.Length)] = Int16.Parse(binaryString[j].ToString());
                 }
+                instructionSet.Add(instruction);
             }
 
-            Console.WriteLine("Number of instructions: " + instructionSet.GetLength(0) + " Number of commands per instruction: " + instructionSet.GetLength(1));
+            Console.WriteLine("Number of instructions: " + instructionSet.Count + " Number of commands per instruction: " + instructionSet[0].Count);
 
             return instructionSet;
 
         }
 
-        static int[,] RunInstructions(int[,] ins, char[,] map, int x, int y)
+        static List<List<int>> RunInstructions(List<List<int>> ins, List<List<char>> map, int x, int y) //Input instructions, output instructions that don't fail. Only output 1 if it has won.
         {
             int xPos = x;
             int yPos = y;
-            int[,] workingInstructions = new int[ins.GetLength(0), ins.GetLength(1)];
-            for (int insGroup = 0; insGroup < ins.GetLength(0); insGroup++)
+            List<int> badIns = new List<int>();
+            List<int> wonIns = new List<int>();
+
+            
+
+            List<List<int>> workingIns = new List<List<int>>(ins);
+
+            for (int insGroup = 0; insGroup < ins.Count; insGroup++)
             {
-                for (int i = 0; i < ins.GetLength(1); i++)
+
+                yPos = y;
+                xPos = x;
+                for (int i = 0; i < ins[0].Count; i++)
                 {
-                    if (ins[insGroup,i] == 0)
+                    if (ins[insGroup][i] == 0)
                     {
                         yPos++;
                     }
@@ -121,14 +172,64 @@ namespace Runaway
                         xPos++;
                     }
 
-                    if (map[y,x] == 'X')
+                    if (map[yPos][xPos] == 'X')
                     {
+                        Console.WriteLine(insGroup);
+                        badIns.Add(insGroup);
+                        break;
+                    }
+                    else if (map[yPos][xPos] == 'G')
+                    {
+                        wonIns.Add(insGroup);
                         break;
                     }
                 }
+                if (wonIns.Count > 0)
+                {
+                    break;
+                }
             }
-            
+
+            if (wonIns.Count > 0)
+            {
+                workingIns.RemoveRange(0, workingIns.Count);
+                workingIns.Add(ins[wonIns[0]]);
+                return workingIns;
+            }
+
+            for (int i = badIns.Count - 1; i >= 0; i--)
+            {
+                workingIns.RemoveAt(badIns[i]);//Remove instructions that don't work
+            }
+
+
+            return workingIns;
+
         }
+
+        static void Solve(List<int> insRaw, string username, string password)
+        {
+            List<string> insString = new List<string>();
+            foreach (int i in insRaw)
+            {
+                if (i == 0)
+                {
+                    insString.Add("D");
+                }
+                else if (i == 1)
+                {
+                    insString.Add("R");
+                }
+            }
+            string joined = string.Join<string>("", insString);
+
+
+            using (WebClient client = new WebClient())
+            {
+                client.DownloadData("http://www.hacker.org/runaway/index.php?name=" + username + "&password=" + password + "&path=" + joined);
+            }
+        }
+
         //static void ExtractData(string html)
         //{
         //    string rawMap = html.Substring(html.IndexOf("=.") + 1, html.IndexOf("&FVinsMax") - html.IndexOf("=.") - 1);
@@ -140,5 +241,5 @@ namespace Runaway
 
         //    Console.WriteLine(level);
         //} 
-    } 
+    }
 }
